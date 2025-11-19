@@ -1,0 +1,45 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: multi-host
+  namespace: default
+spec:
+  tls:
+  - hosts:
+    - test1.local
+    - test2.local
+    secretName: webapp-tls
+  - hosts:
+    - test3.local
+    secretName: api-tls
+  rules:
+  - host: test1.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: service1
+            port:
+              number: 80
+  - host: test2.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: service2
+            port:
+              number: 80
+  - host: test3.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: service3
+            port:
+              number: 80
