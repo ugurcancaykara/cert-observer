@@ -34,6 +34,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/ugurcancaykara/cert-observer/internal/cache"
+	"github.com/ugurcancaykara/cert-observer/internal/config"
+	"github.com/ugurcancaykara/cert-observer/internal/controller"
+	"github.com/ugurcancaykara/cert-observer/internal/reporter"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -174,6 +179,41 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		setupLog.Error(err, "unable to load configuration")
+		os.Exit(1)
+	}
+	setupLog.Info("loaded configuration",
+		"cluster", cfg.ClusterName,
+		"endpoint", cfg.ReportEndpoint,
+		"interval", cfg.ReportInterval)
+
+	// Initialize the ingress cache
+	ingressCache := cache.NewIngressCache(cfg.ClusterName)
+	setupLog.Info("initialized ingress cache", "cluster", cfg.ClusterName)
+
+	// Setup Ingress controller
+	if err = (&controller.IngressReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Cache:  ingressCache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Ingress")
+		os.Exit(1)
+	}
+
+	// Setup Secret controller for certificate expiry tracking
+	if err = (&controller.SecretReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Cache:  ingressCache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Secret")
+		os.Exit(1)
+	}
+
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
@@ -185,8 +225,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Start HTTP reporter in a goroutine
+	ctx := ctrl.SetupSignalHandler()
+	httpReporter := reporter.NewHTTPReporter(cfg, ingressCache, ctrl.Log.WithName("reporter"))
+	go httpReporter.Start(ctx)
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
