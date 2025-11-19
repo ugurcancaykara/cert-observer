@@ -2,12 +2,16 @@ package controller
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"time"
 
 	"github.com/ugurcancaykara/cert-observer/internal/cache"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -56,23 +60,7 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 // updateCache extracts Ingress information and updates the cache
 func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
-	// Preserve certificate expiry dates from cache when rebuilding IngressInfo
-	existingEntries := r.Cache.GetAll()
-	existingCerts := make(map[string]map[string]*cache.CertificateInfo)
-	for _, entry := range existingEntries {
-		if entry.Namespace == ingress.Namespace {
-			if existingCerts[entry.Namespace] == nil {
-				existingCerts[entry.Namespace] = make(map[string]*cache.CertificateInfo)
-			}
-			for _, host := range entry.Hosts {
-				if host.Certificate != nil && host.Certificate.Expires != nil {
-					if existing, ok := existingCerts[entry.Namespace][host.Certificate.Name]; !ok || existing.Expires == nil {
-						existingCerts[entry.Namespace][host.Certificate.Name] = host.Certificate
-					}
-				}
-			}
-		}
-	}
+	ctx := context.Background()
 
 	// Extract hosts from rules
 	hosts := make(map[string]bool)
@@ -103,6 +91,40 @@ func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
 		}
 	}
 
+	// Fetch certificate expiry for all secrets
+	certExpiry := make(map[string]*cache.CertificateInfo)
+	for _, tls := range ingress.Spec.TLS {
+		if tls.SecretName != "" {
+			if _, exists := certExpiry[tls.SecretName]; !exists {
+				// Fetch secret and extract expiry
+				var secret corev1.Secret
+				if err := r.Get(ctx, types.NamespacedName{
+					Namespace: ingress.Namespace,
+					Name:      tls.SecretName,
+				}, &secret); err != nil {
+					// Secret doesn't exist or can't be fetched, create cert info without expiry
+					certExpiry[tls.SecretName] = &cache.CertificateInfo{
+						Name:    tls.SecretName,
+						Expires: nil,
+					}
+				} else {
+					// Extract certificate expiry
+					expiryTime, err := r.extractCertificateExpiry(&secret)
+					certExpiry[tls.SecretName] = &cache.CertificateInfo{
+						Name:    tls.SecretName,
+						Expires: expiryTime,
+					}
+					if err != nil {
+						// Log but don't fail - we still want to track the ingress
+						ctrl.Log.V(1).Info("failed to extract certificate expiry",
+							"secret", tls.SecretName,
+							"error", err.Error())
+					}
+				}
+			}
+		}
+	}
+
 	// Build single IngressInfo with all hosts
 	info := &cache.IngressInfo{
 		Namespace: ingress.Namespace,
@@ -118,14 +140,8 @@ func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
 
 		// Add certificate info if available
 		if certName, ok := hostToCert[host]; ok {
-			// Check if we have existing certificate info with expiry date
-			if existingCert, exists := existingCerts[ingress.Namespace][certName]; exists {
-				hostInfo.Certificate = existingCert
-			} else {
-				hostInfo.Certificate = &cache.CertificateInfo{
-					Name:    certName,
-					Expires: nil,
-				}
+			if certInfo, exists := certExpiry[certName]; exists {
+				hostInfo.Certificate = certInfo
 			}
 		}
 
@@ -141,6 +157,29 @@ func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
 
 	r.Cache.Add(info)
 	return nil
+}
+
+// extractCertificateExpiry parses the certificate and extracts the NotAfter time
+func (r *IngressReconciler) extractCertificateExpiry(secret *corev1.Secret) (*time.Time, error) {
+	// Get certificate data
+	certData, ok := secret.Data["tls.crt"]
+	if !ok {
+		return nil, fmt.Errorf("secret does not contain tls.crt")
+	}
+
+	// Try to decode PEM block
+	block, _ := pem.Decode(certData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to decode PEM block")
+	}
+
+	// Parse certificate
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+
+	return &cert.NotAfter, nil
 }
 
 // findIngressesForSecret returns reconcile requests for all Ingresses that use the given Secret

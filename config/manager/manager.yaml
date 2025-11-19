@@ -64,7 +64,15 @@ spec:
           - --leader-elect
           - --health-probe-bind-address=:8081
         image: controller:latest
+        imagePullPolicy: Never
         name: manager
+        env:
+        - name: CLUSTER_NAME
+          value: "local-kind"
+        - name: REPORT_ENDPOINT
+          value: "http://test-server.default.svc.cluster.local:8080/report"
+        - name: REPORT_INTERVAL
+          value: "30s"
         ports: []
         securityContext:
           readOnlyRootFilesystem: true
