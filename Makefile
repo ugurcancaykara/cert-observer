@@ -248,3 +248,31 @@ endef
 define gomodver
 $(shell go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' $(1) 2>/dev/null)
 endef
+
+##@ Kind Cluster Management
+
+KIND_CLUSTER_NAME ?= cert-observer
+
+.PHONY: kind-create
+kind-create: ## Create kind cluster
+	@echo "Creating kind cluster '$(KIND_CLUSTER_NAME)'..."
+	$(KIND) create cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-delete
+kind-delete: ## Delete kind cluster
+	@echo "Deleting kind cluster '$(KIND_CLUSTER_NAME)'..."
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-load
+kind-load: ## Load docker image to kind cluster
+	@echo "Loading image '$(IMG)' to kind cluster..."
+	$(KIND) load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
+
+.PHONY: kind-deploy
+kind-deploy: manifests kustomize docker-build kind-load deploy ## Build, load image to kind, and deploy
+	@echo "Deployment to kind cluster complete!"
+
+.PHONY: kind-restart
+kind-restart: ## Restart deployment in kind cluster
+	@echo "Restarting deployment..."
+	$(KUBECTL) rollout restart deployment -n cert-observer-system cert-observer-controller-manager
