@@ -103,6 +103,235 @@ func TestIngressCache_UpdateCertificate(t *testing.T) {
 	}
 }
 
+func TestIngressCache_UpdateCertificate_MultipleIngresses(t *testing.T) {
+	cache := NewIngressCache("test-cluster")
+
+	// Two ingresses using the same certificate
+	info1 := &IngressInfo{
+		Namespace: "default",
+		Name:      "webapp",
+		Hosts: []HostInfo{
+			{
+				Host: "webapp.local",
+				Certificate: &CertificateInfo{
+					Name: "shared-tls",
+				},
+			},
+		},
+	}
+
+	info2 := &IngressInfo{
+		Namespace: "default",
+		Name:      "api",
+		Hosts: []HostInfo{
+			{
+				Host: "api.local",
+				Certificate: &CertificateInfo{
+					Name: "shared-tls",
+				},
+			},
+		},
+	}
+
+	cache.Add(info1)
+	cache.Add(info2)
+
+	expires := time.Now().Add(365 * 24 * time.Hour)
+	cache.UpdateCertificate("default", "shared-tls", &expires)
+
+	all := cache.GetAll()
+	if len(all) != 2 {
+		t.Fatalf("Expected 2 items in cache, got %d", len(all))
+	}
+
+	// Both should have the updated expiry
+	for _, item := range all {
+		if item.Hosts[0].Certificate == nil || item.Hosts[0].Certificate.Expires == nil {
+			t.Errorf("Certificate expires not updated for %s/%s", item.Namespace, item.Name)
+			continue
+		}
+		if !item.Hosts[0].Certificate.Expires.Equal(expires) {
+			t.Errorf("Expires = %v, want %v for %s/%s",
+				item.Hosts[0].Certificate.Expires, expires, item.Namespace, item.Name)
+		}
+	}
+}
+
+func TestIngressCache_UpdateCertificate_DifferentNamespaces(t *testing.T) {
+	cache := NewIngressCache("test-cluster")
+
+	// Same certificate name in different namespaces
+	info1 := &IngressInfo{
+		Namespace: "default",
+		Name:      "webapp",
+		Hosts: []HostInfo{
+			{
+				Host: "webapp.local",
+				Certificate: &CertificateInfo{
+					Name: "app-tls",
+				},
+			},
+		},
+	}
+
+	info2 := &IngressInfo{
+		Namespace: "production",
+		Name:      "webapp",
+		Hosts: []HostInfo{
+			{
+				Host: "webapp.prod.local",
+				Certificate: &CertificateInfo{
+					Name: "app-tls",
+				},
+			},
+		},
+	}
+
+	cache.Add(info1)
+	cache.Add(info2)
+
+	expires := time.Now().Add(365 * 24 * time.Hour)
+	// Only update certificate in default namespace
+	cache.UpdateCertificate("default", "app-tls", &expires)
+
+	all := cache.GetAll()
+
+	for _, item := range all {
+		if item.Namespace == "default" {
+			// Should be updated
+			if item.Hosts[0].Certificate == nil || item.Hosts[0].Certificate.Expires == nil {
+				t.Error("Certificate in default namespace should have expiry")
+			} else if !item.Hosts[0].Certificate.Expires.Equal(expires) {
+				t.Errorf("Default namespace expires = %v, want %v",
+					item.Hosts[0].Certificate.Expires, expires)
+			}
+		} else if item.Namespace == "production" {
+			// Should NOT be updated
+			if item.Hosts[0].Certificate.Expires != nil {
+				t.Error("Certificate in production namespace should not have expiry")
+			}
+		}
+	}
+}
+
+func TestIngressCache_UpdateCertificate_NilExpiry(t *testing.T) {
+	cache := NewIngressCache("test-cluster")
+
+	expires := time.Now().Add(365 * 24 * time.Hour)
+	info := &IngressInfo{
+		Namespace: "default",
+		Name:      "webapp",
+		Hosts: []HostInfo{
+			{
+				Host: "webapp.local",
+				Certificate: &CertificateInfo{
+					Name:    "webapp-tls",
+					Expires: &expires,
+				},
+			},
+		},
+	}
+
+	cache.Add(info)
+
+	// Verify expiry is set
+	all := cache.GetAll()
+	if all[0].Hosts[0].Certificate.Expires == nil {
+		t.Fatal("Initial expiry should be set")
+	}
+
+	// Clear expiry (certificate deleted scenario)
+	cache.UpdateCertificate("default", "webapp-tls", nil)
+
+	all = cache.GetAll()
+	if all[0].Hosts[0].Certificate.Expires != nil {
+		t.Error("Expiry should be nil after update with nil")
+	}
+}
+
+func TestIngressCache_UpdateCertificate_MultiHost(t *testing.T) {
+	cache := NewIngressCache("test-cluster")
+
+	// Ingress with multiple hosts using same certificate
+	info := &IngressInfo{
+		Namespace: "default",
+		Name:      "multi-host",
+		Hosts: []HostInfo{
+			{
+				Host: "app1.local",
+				Certificate: &CertificateInfo{
+					Name: "shared-tls",
+				},
+			},
+			{
+				Host: "app2.local",
+				Certificate: &CertificateInfo{
+					Name: "shared-tls",
+				},
+			},
+			{
+				Host: "app3.local",
+				Certificate: &CertificateInfo{
+					Name: "other-tls",
+				},
+			},
+		},
+	}
+
+	cache.Add(info)
+
+	expires := time.Now().Add(365 * 24 * time.Hour)
+	cache.UpdateCertificate("default", "shared-tls", &expires)
+
+	all := cache.GetAll()
+	hosts := all[0].Hosts
+
+	// First two hosts should have updated expiry
+	for i := 0; i < 2; i++ {
+		if hosts[i].Certificate == nil || hosts[i].Certificate.Expires == nil {
+			t.Errorf("Host %d certificate expires should be updated", i)
+			continue
+		}
+		if !hosts[i].Certificate.Expires.Equal(expires) {
+			t.Errorf("Host %d expires = %v, want %v", i, hosts[i].Certificate.Expires, expires)
+		}
+	}
+
+	// Third host should NOT have expiry (different certificate)
+	if hosts[2].Certificate.Expires != nil {
+		t.Error("Host 2 with different certificate should not have expiry updated")
+	}
+}
+
+func TestIngressCache_UpdateCertificate_NonExistent(t *testing.T) {
+	cache := NewIngressCache("test-cluster")
+
+	info := &IngressInfo{
+		Namespace: "default",
+		Name:      "webapp",
+		Hosts: []HostInfo{
+			{
+				Host: "webapp.local",
+				Certificate: &CertificateInfo{
+					Name: "webapp-tls",
+				},
+			},
+		},
+	}
+
+	cache.Add(info)
+
+	expires := time.Now().Add(365 * 24 * time.Hour)
+	// Try to update non-existent certificate
+	cache.UpdateCertificate("default", "nonexistent-tls", &expires)
+
+	all := cache.GetAll()
+	// Should not panic, and original certificate should be unchanged
+	if all[0].Hosts[0].Certificate.Expires != nil {
+		t.Error("Non-existent certificate update should not affect other certificates")
+	}
+}
+
 func TestIngressCache_Concurrency(t *testing.T) {
 	cache := NewIngressCache("test-cluster")
 	var wg sync.WaitGroup
