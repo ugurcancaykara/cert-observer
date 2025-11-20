@@ -87,22 +87,6 @@ func (c *IngressCache) GetAll() []*IngressInfo {
 	return result
 }
 
-// UpdateCertificate updates certificate information for matching Ingress entries
-func (c *IngressCache) UpdateCertificate(namespace, secretName string, expires *time.Time) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for _, info := range c.items {
-		if info.Namespace == namespace {
-			for i := range info.Hosts {
-				if info.Hosts[i].Certificate != nil && info.Hosts[i].Certificate.Name == secretName {
-					info.Hosts[i].Certificate.Expires = expires
-				}
-			}
-		}
-	}
-}
-
 // makeKey creates a unique key for cache storage
 func makeKey(clusterName, namespace, name string) string {
 	return clusterName + "/" + namespace + "/" + name
