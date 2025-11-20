@@ -276,3 +276,40 @@ kind-deploy: manifests kustomize docker-build kind-load deploy ## Build, load im
 kind-restart: ## Restart deployment in kind cluster
 	@echo "Restarting deployment..."
 	$(KUBECTL) rollout restart deployment -n cert-observer-system cert-observer-controller-manager
+
+.PHONY: deploy-examples
+deploy-examples: ## Deploy test-server and example resources (TLS secrets and ingresses)
+	@echo "========================================="
+	@echo "Building test-server where the reports will be delivered..."
+	@echo "========================================="
+	cd examples/test-server && $(CONTAINER_TOOL) build -t test-server:latest .
+	@echo ""
+	@echo "Loading test-server image to kind cluster..."
+	$(KIND) load docker-image test-server:latest --name $(KIND_CLUSTER_NAME)
+	@echo ""
+	@echo "Deploying test-server..."
+	$(KUBECTL) apply -f examples/test-server/deployment.yaml
+	@echo ""
+	@echo "========================================="
+	@echo "Deploying TLS secrets..."
+	@echo "========================================="
+	$(KUBECTL) create secret tls webapp-tls --cert=examples/webapp-cert.pem --key=examples/webapp-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) create secret tls api-tls --cert=examples/api-cert.pem --key=examples/api-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) create secret tls blog-tls --cert=examples/blog-cert.pem --key=examples/blog-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(KUBECTL) create secret tls shop-tls --cert=examples/shop-cert.pem --key=examples/shop-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@echo ""
+	@echo "========================================="
+	@echo "Deploying example ingresses..."
+	@echo "========================================="
+	$(KUBECTL) apply -f examples/webapp-ingress.yaml
+	$(KUBECTL) apply -f examples/api-ingress.yaml
+	$(KUBECTL) apply -f examples/blog-ingress.yaml
+	$(KUBECTL) apply -f examples/shop-ingress.yaml
+	$(KUBECTL) apply -f examples/multi-host-ingress.yaml
+	@echo ""
+	@echo "✅ Examples deployed successfully!"
+	@echo "Test-server is ready to receive certificate reports at http://test-server:8080/report"
+
+.PHONY: deploy-local
+deploy-local: docker-build kind-load deploy ## Build, load to kind, and deploy operator locally
+	@echo "Local deployment complete!"
