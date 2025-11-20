@@ -21,6 +21,7 @@ func LoadFromCRD(ctx context.Context, k8sClient client.Client) (*Config, error) 
 	}, observer)
 
 	if err != nil {
+		// Log the error for debugging
 		// CRD not found - return nil (no reporting)
 		return nil, nil
 	}

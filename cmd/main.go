@@ -32,6 +32,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -186,8 +187,15 @@ func main() {
 	}
 
 	// Load configuration from ClusterObserver CRD only
+	// Use a direct API client (not cached) since manager hasn't started yet
 	ctx := context.Background()
-	cfg, err := config.LoadFromCRD(ctx, mgr.GetClient())
+	directClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "unable to create direct client")
+		os.Exit(1)
+	}
+
+	cfg, err := config.LoadFromCRD(ctx, directClient)
 	if err != nil {
 		setupLog.Error(err, "unable to load configuration from CRD")
 		os.Exit(1)
