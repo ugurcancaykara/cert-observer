@@ -328,8 +328,14 @@ deploy-examples: ## Deploy test-server and example resources (TLS secrets and in
 	$(KUBECTL) apply -f examples/shop-ingress.yaml
 	$(KUBECTL) apply -f examples/multi-host-ingress.yaml
 	@echo ""
+	@echo "========================================="
+	@echo "Deploying ClusterObserver CRD..."
+	@echo "========================================="
+	$(KUBECTL) apply -f config/samples/observer_v1alpha1_clusterobserver.yaml
+	@echo ""
 	@echo "✅ Examples deployed successfully!"
 	@echo "Test-server is ready to receive certificate reports at http://test-server:8080/report"
+	@echo "ClusterObserver CRD deployed - operator will start reporting on next restart"
 
 .PHONY: deploy-local
 deploy-local: docker-build kind-load deploy ## Build, load to kind, and deploy operator locally
