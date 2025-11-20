@@ -14,37 +14,35 @@ Useful for tracking certificate expiration across multiple clusters.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  Kubernetes Cluster                                     │
-│                                                         │
-│  ┌───────────────────────────────────────────────────┐ │
-│  │  cert-observer-system namespace                   │ │
-│  │                                                    │ │
-│  │  ┌──────────────────────────────────────────┐    │ │
-│  │  │  cert-observer-controller                │    │ │
-│  │  │                                          │    │ │
-│  │  │  - IngressController                    │    │ │
-│  │  │  - IngressCache (in-memory)             │    │ │
-│  │  │  - HTTPReporter (30s interval)          │    │ │
-│  │  └──────────────────────────────────────────┘    │ │
-│  └───────────────────────────────────────────────────┘ │
-│                                                         │
-│  ┌───────────────────────────────────────────────────┐ │
-│  │  default namespace                                │ │
-│  │                                                    │ │
-│  │  ┌─────────────┐  ┌─────────────┐                │ │
-│  │  │ Ingress     │  │ TLS Secrets │                │ │
-│  │  │ - webapp    │  │ - webapp-tls│                │ │
-│  │  │ - api       │  │ - api-tls   │                │ │
-│  │  └─────────────┘  └─────────────┘                │ │
-│  │                                                    │ │
-│  │  ┌──────────────────────────────────────────┐    │ │
-│  │  │  test-server (receives reports)          │    │ │
-│  │  │  HTTP server :8080/report                │    │ │
-│  │  └──────────────────────────────────────────┘    │ │
-│  └───────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph cluster["Kubernetes Cluster"]
+        subgraph system["cert-observer-system namespace"]
+            controller["cert-observer-controller<br/>• IngressController<br/>• ClusterObserverController<br/>• IngressCache (in-memory)<br/>• HTTPReporter (30s interval)<br/>• Metrics Endpoint :9090"]
+        end
+
+        subgraph defaultns["default namespace"]
+            subgraph resources["Resources"]
+                ingress["Ingress Resources<br/>• webapp<br/>• api<br/>• blog<br/>• shop"]
+                secrets["TLS Secrets<br/>• webapp-tls<br/>• api-tls<br/>• blog-tls<br/>• shop-tls"]
+                crd["ClusterObserver CRD<br/>• clusterName<br/>• reportEndpoint<br/>• reportInterval"]
+            end
+
+            testserver["test-server<br/>HTTP server :8080/report"]
+        end
+    end
+
+    controller -->|watches| ingress
+    controller -->|reads| secrets
+    controller -->|watches & updates status| crd
+    controller -->|sends reports every 30s| testserver
+    ingress -.->|references| secrets
+
+    style controller fill:#e1f5ff
+    style testserver fill:#fff4e1
+    style crd fill:#f0e1ff
+    style ingress fill:#e8f5e9
+    style secrets fill:#fff3e0
 ```
 
 ### Components
