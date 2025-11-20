@@ -71,8 +71,6 @@ kind: Ingress
 metadata:
   name: docs
   namespace: default
-  annotations:
-    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
   tls:
   - hosts:
@@ -96,8 +94,6 @@ kind: Ingress
 metadata:
   name: admin
   namespace: default
-  annotations:
-    cert-manager.io/cluster-issuer: selfsigned-issuer
 spec:
   tls:
   - hosts:
