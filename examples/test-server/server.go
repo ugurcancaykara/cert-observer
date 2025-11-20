@@ -36,7 +36,9 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer func() {
-		_ = r.Body.Close()
+		if err := r.Body.Close(); err != nil {
+			log.Printf("Failed to close request body: %v", err)
+		}
 	}()
 
 	// Pretty print JSON
@@ -63,10 +65,14 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 	log.Println("======================")
 
 	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, "Report received successfully\n")
+	if _, err := fmt.Fprintf(w, "Report received successfully\n"); err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	_, _ = fmt.Fprintf(w, "OK\n")
+	if _, err := fmt.Fprintf(w, "OK\n"); err != nil {
+		log.Printf("Failed to write health response: %v", err)
+	}
 }

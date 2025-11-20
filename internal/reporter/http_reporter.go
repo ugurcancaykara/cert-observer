@@ -161,7 +161,9 @@ func (r *HTTPReporter) sendReport(ctx context.Context) error {
 			return err
 		}
 		defer func() {
-			_ = resp.Body.Close()
+			if err := resp.Body.Close(); err != nil {
+				r.log.V(1).Info("failed to close response body", "error", err.Error())
+			}
 		}()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
