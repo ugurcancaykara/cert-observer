@@ -110,19 +110,31 @@ All created resources will be deleted
 
 ## Configuration
 
-### Environment Variables (Default)
+Configuration is managed via the ClusterObserver CRD. If no CRD exists, the reporter will not send reports.
 
-Configure via environment variables in `config/manager/manager.yaml`:
+### ClusterObserver CRD
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CLUSTER_NAME` | `local-kind` | Cluster identifier in reports |
-| `REPORT_ENDPOINT` | `http://test-server.default.svc.cluster.local:8080/report` | Where to send reports |
-| `REPORT_INTERVAL` | `30s` | Report frequency |
+Apply the sample configuration:
 
-### ClusterObserver CRD (Optional)
+```bash
+kubectl apply -f config/samples/observer_v1alpha1_clusterobserver.yaml
+```
 
-Alternatively, use the ClusterObserver CRD for runtime configuration. See `config/samples/observer_v1alpha1_clusterobserver.yaml`.
+Example CRD:
+
+```yaml
+apiVersion: observer.cert-observer.io/v1alpha1
+kind: ClusterObserver
+metadata:
+  name: clusterobserver-sample
+  namespace: default
+spec:
+  clusterName: local-kind
+  reportEndpoint: http://test-server.default.svc.cluster.local:8080/report
+  reportInterval: 30s
+```
+
+Changes require pod restart to take effect.
 
 ### Metrics
 

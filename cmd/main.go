@@ -185,20 +185,31 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load configuration
-	cfg, err := config.Load()
+	// Load configuration from ClusterObserver CRD only
+	ctx := context.Background()
+	cfg, err := config.LoadFromCRD(ctx, mgr.GetClient())
 	if err != nil {
-		setupLog.Error(err, "unable to load configuration")
+		setupLog.Error(err, "unable to load configuration from CRD")
 		os.Exit(1)
 	}
-	setupLog.Info("loaded configuration",
-		"cluster", cfg.ClusterName,
-		"endpoint", cfg.ReportEndpoint,
-		"interval", cfg.ReportInterval)
+
+	if cfg == nil {
+		setupLog.Info("no ClusterObserver CRD found, reporter will not be started")
+	} else {
+		setupLog.Info("loaded configuration from ClusterObserver CRD",
+			"cluster", cfg.ClusterName,
+			"endpoint", cfg.ReportEndpoint,
+			"interval", cfg.ReportInterval)
+	}
 
 	// Initialize the ingress cache
-	ingressCache := cache.NewIngressCache(cfg.ClusterName)
-	setupLog.Info("initialized ingress cache", "cluster", cfg.ClusterName)
+	// Use empty cluster name if no config available
+	clusterName := ""
+	if cfg != nil {
+		clusterName = cfg.ClusterName
+	}
+	ingressCache := cache.NewIngressCache(clusterName)
+	setupLog.Info("initialized ingress cache", "cluster", clusterName)
 
 	// Setup Ingress controller
 	if err = (&controller.IngressReconciler{
@@ -230,10 +241,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Start HTTP reporter in a goroutine
-	ctx := ctrl.SetupSignalHandler()
-	httpReporter := reporter.NewHTTPReporter(cfg, ingressCache, ctrl.Log.WithName("reporter"))
-	go httpReporter.Start(ctx)
+	// Start HTTP reporter in a goroutine only if config is available
+	signalCtx := ctrl.SetupSignalHandler()
+	if cfg != nil {
+		httpReporter := reporter.NewHTTPReporter(cfg, ingressCache, ctrl.Log.WithName("reporter"))
+		go httpReporter.Start(signalCtx)
+	}
 
 	// Start metrics HTTP server
 	metricsHandler := metrics.NewHandler(ingressCache, ctrl.Log.WithName("metrics"))
@@ -250,7 +263,7 @@ func main() {
 
 	// Graceful shutdown for metrics server
 	go func() {
-		<-ctx.Done()
+		<-signalCtx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
@@ -259,7 +272,7 @@ func main() {
 	}()
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctx); err != nil {
+	if err := mgr.Start(signalCtx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
