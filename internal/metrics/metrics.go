@@ -26,7 +26,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "# HELP cert_observer_ingresses_total Total number of observed ingresses\n")
-	fmt.Fprintf(w, "# TYPE cert_observer_ingresses_total gauge\n")
-	fmt.Fprintf(w, "cert_observer_ingresses_total %d\n", count)
+	_, _ = fmt.Fprintf(w, "# HELP cert_observer_ingresses_total Total number of observed ingresses\n")
+	_, _ = fmt.Fprintf(w, "# TYPE cert_observer_ingresses_total gauge\n")
+	_, _ = fmt.Fprintf(w, "cert_observer_ingresses_total %d\n", count)
 }

@@ -26,40 +26,37 @@ type IngressReconciler struct {
 	Cache  *cache.IngressCache
 }
 
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
-//+kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch
+// +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses/status,verbs=get
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 
 // Reconcile handles Ingress resource changes
 func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
-	log.Info("reconciling ingress", "namespace", req.Namespace, "name", req.Name)
+	logger.Info("reconciling ingress", "namespace", req.Namespace, "name", req.Name)
 
 	var ingress networkingv1.Ingress
 	if err := r.Get(ctx, req.NamespacedName, &ingress); err != nil {
 		if client.IgnoreNotFound(err) == nil {
 			// Ingress deleted, remove from cache
-			log.Info("ingress deleted, removing from cache", "namespace", req.Namespace, "name", req.Name)
+			logger.Info("ingress deleted, removing from cache", "namespace", req.Namespace, "name", req.Name)
 			r.Cache.Delete(req.Namespace, req.Name)
 			return ctrl.Result{}, nil
 		}
-		log.Error(err, "failed to get ingress", "namespace", req.Namespace, "name", req.Name)
+		logger.Error(err, "failed to get ingress", "namespace", req.Namespace, "name", req.Name)
 		return ctrl.Result{}, fmt.Errorf("failed to get ingress %s/%s: %w", req.Namespace, req.Name, err)
 	}
 
 	// Extract and cache Ingress information
-	if err := r.updateCache(&ingress); err != nil {
-		log.Error(err, "failed to update cache", "ingress", req.NamespacedName)
-		return ctrl.Result{}, err
-	}
+	r.updateCache(&ingress)
 
-	log.V(1).Info("successfully updated cache", "ingress", req.NamespacedName)
+	logger.V(1).Info("successfully updated cache", "ingress", req.NamespacedName)
 	return ctrl.Result{}, nil
 }
 
 // updateCache extracts Ingress information and updates the cache
-func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
+func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) {
 	ctx := context.Background()
 
 	// Extract hosts from rules
@@ -156,7 +153,6 @@ func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) error {
 	}
 
 	r.Cache.Add(info)
-	return nil
 }
 
 // extractCertificateExpiry parses the certificate and extracts the NotAfter time
@@ -184,11 +180,11 @@ func (r *IngressReconciler) extractCertificateExpiry(secret *corev1.Secret) (*ti
 
 // findIngressesForSecret returns reconcile requests for all Ingresses that use the given Secret
 func (r *IngressReconciler) findIngressesForSecret(ctx context.Context, secret client.Object) []reconcile.Request {
-	log := log.FromContext(ctx)
+	logger := log.FromContext(ctx)
 
 	var ingressList networkingv1.IngressList
 	if err := r.List(ctx, &ingressList, client.InNamespace(secret.GetNamespace())); err != nil {
-		log.Error(err, "failed to list ingresses", "namespace", secret.GetNamespace())
+		logger.Error(err, "failed to list ingresses", "namespace", secret.GetNamespace())
 		return []reconcile.Request{}
 	}
 
@@ -199,7 +195,7 @@ func (r *IngressReconciler) findIngressesForSecret(ctx context.Context, secret c
 				requests = append(requests, reconcile.Request{
 					NamespacedName: client.ObjectKeyFromObject(&ingress),
 				})
-				log.V(1).Info("secret change triggers ingress reconciliation",
+				logger.V(1).Info("secret change triggers ingress reconciliation",
 					"secret", secret.GetName(),
 					"ingress", ingress.Name,
 					"namespace", ingress.Namespace)

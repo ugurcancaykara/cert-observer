@@ -35,7 +35,9 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to read request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	// Pretty print JSON
 	var report interface{}
@@ -61,10 +63,10 @@ func handleReport(w http.ResponseWriter, r *http.Request) {
 	log.Println("======================")
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Report received successfully\n")
+	_, _ = fmt.Fprintf(w, "Report received successfully\n")
 }
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "OK\n")
+	_, _ = fmt.Fprintf(w, "OK\n")
 }

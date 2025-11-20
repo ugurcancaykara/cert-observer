@@ -24,12 +24,11 @@ type Report struct {
 
 // HTTPReporter periodically sends reports to an HTTP endpoint
 type HTTPReporter struct {
-	config          *config.Config
-	cache           *cache.IngressCache
-	client          *http.Client
-	log             logr.Logger
-	serverAvailable bool
-	failureCount    int
+	config       *config.Config
+	cache        *cache.IngressCache
+	client       *http.Client
+	log          logr.Logger
+	failureCount int
 }
 
 // NewHTTPReporter creates a new HTTPReporter instance
@@ -161,7 +160,9 @@ func (r *HTTPReporter) sendReport(ctx context.Context) error {
 			}
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			r.log.Info("report sent successfully", "endpoint", r.config.ReportEndpoint, "status", resp.StatusCode, "ingress_count", len(ingresses))

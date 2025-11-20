@@ -51,7 +51,9 @@ func TestLoad(t *testing.T) {
 
 			// Set test environment variables
 			for k, v := range tt.envVars {
-				os.Setenv(k, v)
+				if err := os.Setenv(k, v); err != nil {
+					t.Fatalf("failed to set env var %s: %v", k, err)
+				}
 			}
 
 			cfg, err := Load()

@@ -74,7 +74,7 @@ func TestIngressCache_Concurrency(t *testing.T) {
 	// Concurrent writes
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 			info := &IngressInfo{
 				Namespace: "default",
