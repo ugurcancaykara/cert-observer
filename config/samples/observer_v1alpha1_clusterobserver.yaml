@@ -1,0 +1,11 @@
+apiVersion: observer.cert-observer.io/v1alpha1
+kind: ClusterObserver
+metadata:
+  labels:
+    app.kubernetes.io/name: cert-observer
+    app.kubernetes.io/managed-by: kustomize
+  name: clusterobserver-sample
+spec:
+  clusterName: local-kind
+  reportEndpoint: http://test-server.default.svc.cluster.local:8080/report
+  reportInterval: 30s

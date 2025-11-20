@@ -26,3 +26,29 @@ rules:
   - ingresses/status
   verbs:
   - get
+- apiGroups:
+  - observer.cert-observer.io
+  resources:
+  - clusterobservers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - observer.cert-observer.io
+  resources:
+  - clusterobservers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - observer.cert-observer.io
+  resources:
+  - clusterobservers/status
+  verbs:
+  - get
+  - patch
+  - update

@@ -35,6 +35,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	observerv1alpha1 "github.com/ugurcancaykara/cert-observer/api/v1alpha1"
 	"github.com/ugurcancaykara/cert-observer/internal/cache"
 	"github.com/ugurcancaykara/cert-observer/internal/config"
 	"github.com/ugurcancaykara/cert-observer/internal/controller"
@@ -50,6 +51,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(observerv1alpha1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -204,6 +206,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup ClusterObserver controller
+	if err := (&controller.ClusterObserverReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Cache:  ingressCache,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "ClusterObserver")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
