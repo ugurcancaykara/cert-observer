@@ -49,15 +49,15 @@ func (r *IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Extract and cache Ingress information
-	r.updateCache(&ingress)
+	r.updateCache(ctx, &ingress)
 
 	logger.V(1).Info("successfully updated cache", "ingress", req.NamespacedName)
 	return ctrl.Result{}, nil
 }
 
 // updateCache extracts Ingress information and updates the cache
-func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) {
-	ctx := context.Background()
+func (r *IngressReconciler) updateCache(ctx context.Context, ingress *networkingv1.Ingress) {
+	logger := log.FromContext(ctx)
 
 	// Extract hosts from rules
 	hosts := make(map[string]bool)
@@ -113,7 +113,7 @@ func (r *IngressReconciler) updateCache(ingress *networkingv1.Ingress) {
 					}
 					if err != nil {
 						// Log but don't fail - we still want to track the ingress
-						ctrl.Log.V(1).Info("failed to extract certificate expiry",
+						logger.V(1).Info("failed to extract certificate expiry",
 							"secret", tls.SecretName,
 							"error", err.Error())
 					}
