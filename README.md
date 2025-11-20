@@ -5,6 +5,7 @@ A Kubernetes operator that watches Ingress resources, tracks TLS certificate exp
 ## Overview
 
 Cert-Observer monitors your cluster's Ingress resources and their TLS certificates:
+
 - Watches Ingress resources and their referenced TLS Secrets
 - Parses x509 certificates to extract expiry dates
 - Maintains an in-memory cache of ingress and certificate data
@@ -87,11 +88,13 @@ make deploy-local IMG=cert-observer:latest
 ### 4. View Reports
 
 Check operator logs:
+
 ```bash
 kubectl logs -n cert-observer-system deployment/cert-observer-controller-manager -f
 ```
 
 Check test-server logs to see received reports:
+
 ```bash
 kubectl logs -l app=test-server -f
 ```
@@ -204,11 +207,13 @@ Access metrics at `http://localhost:9090/metrics` (exposes total ingress count).
 ## Testing
 
 Run unit tests:
+
 ```bash
 make test
 ```
 
 Test certificate updates:
+
 ```bash
 # Generate new certificate
 openssl req -x509 -nodes -days 90 -newkey rsa:2048 \
@@ -224,35 +229,22 @@ kubectl create secret tls webapp-tls \
 kubectl logs -l app=test-server --tail=50
 ```
 
-## Design Decisions
-
-### In-Memory Cache
-
-The operator maintains a custom cache instead of querying Kubernetes API on every report cycle:
-
-- Reporter reads from cache every 30s (no API calls)
-- Cache updates only when resources change (event-driven)
-- With 1000 ingresses, cache read takes ~1ms vs ~100ms for transform-on-read
-
-Trade-offs: Uses more memory (both K8s cache + custom cache) but much faster reporting.
-
-### Single Controller Architecture
-
-The IngressController watches both Ingress and Secret resources. When a Secret changes, the controller finds all Ingresses using that Secret and reconciles them. This keeps certificate expiry data fresh without needing a separate SecretController.
-
 ## Development
 
 Run locally against your current kubeconfig context:
+
 ```bash
 make run
 ```
 
 Generate manifests after modifying RBAC markers:
+
 ```bash
 make manifests
 ```
 
 Lint code:
+
 ```bash
 make lint
 ```
@@ -263,14 +255,16 @@ make lint
 make kind-delete
 ```
 
-## Troubleshooting
+## Verification
 
 Check operator logs:
+
 ```bash
 kubectl logs -n cert-observer-system deployment/cert-observer-controller-manager
 ```
 
 Check test-server logs:
+
 ```bash
 kubectl logs -l app=test-server
 ```
