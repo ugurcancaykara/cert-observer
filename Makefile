@@ -291,12 +291,33 @@ deploy-examples: ## Deploy test-server and example resources (TLS secrets and in
 	$(KUBECTL) apply -f examples/test-server/deployment.yaml
 	@echo ""
 	@echo "========================================="
+	@echo "Installing cert-manager..."
+	@echo "========================================="
+	@helm repo add jetstack https://charts.jetstack.io --force-update 2>/dev/null || true
+	@helm repo update jetstack 2>/dev/null
+	@if ! $(KUBECTL) get namespace cert-manager >/dev/null 2>&1; then \
+		echo "Installing cert-manager via Helm..."; \
+		helm install cert-manager jetstack/cert-manager \
+			--namespace cert-manager \
+			--create-namespace \
+			--set crds.enabled=true \
+			--wait --timeout=2m; \
+	else \
+		echo "cert-manager already installed, skipping..."; \
+	fi
+	@echo ""
+	@echo "========================================="
 	@echo "Deploying TLS secrets..."
 	@echo "========================================="
 	$(KUBECTL) create secret tls webapp-tls --cert=examples/webapp-cert.pem --key=examples/webapp-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	$(KUBECTL) create secret tls api-tls --cert=examples/api-cert.pem --key=examples/api-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	$(KUBECTL) create secret tls blog-tls --cert=examples/blog-cert.pem --key=examples/blog-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
 	$(KUBECTL) create secret tls shop-tls --cert=examples/shop-cert.pem --key=examples/shop-key.pem --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	@echo ""
+	@echo "========================================="
+	@echo "Deploying cert-manager Certificate resources..."
+	@echo "========================================="
+	$(KUBECTL) apply -f examples/cert-manager-certificates.yaml
 	@echo ""
 	@echo "========================================="
 	@echo "Deploying example ingresses..."
