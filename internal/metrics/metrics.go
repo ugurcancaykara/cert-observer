@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	ctrl "sigs.k8s.io/controller-runtime"
+	"github.com/go-logr/logr"
 
 	"github.com/ugurcancaykara/cert-observer/internal/cache"
 )
@@ -12,18 +12,19 @@ import (
 // Handler serves a simple metrics endpoint
 type Handler struct {
 	cache *cache.IngressCache
+	log   logr.Logger
 }
 
 // NewHandler creates a new metrics handler
-func NewHandler(ingressCache *cache.IngressCache) *Handler {
+func NewHandler(ingressCache *cache.IngressCache, logger logr.Logger) *Handler {
 	return &Handler{
 		cache: ingressCache,
+		log:   logger,
 	}
 }
 
 // ServeHTTP handles /metrics requests
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	log := ctrl.Log.WithName("metrics")
 	ingresses := h.cache.GetAll()
 	count := len(ingresses)
 
@@ -31,12 +32,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if _, err := fmt.Fprintf(w, "# HELP cert_observer_ingresses_total Total number of observed ingresses\n"); err != nil {
-		log.V(1).Info("failed to write metrics help line", "error", err.Error())
+		h.log.V(1).Info("failed to write metrics help line", "error", err.Error())
 	}
 	if _, err := fmt.Fprintf(w, "# TYPE cert_observer_ingresses_total gauge\n"); err != nil {
-		log.V(1).Info("failed to write metrics type line", "error", err.Error())
+		h.log.V(1).Info("failed to write metrics type line", "error", err.Error())
 	}
 	if _, err := fmt.Fprintf(w, "cert_observer_ingresses_total %d\n", count); err != nil {
-		log.V(1).Info("failed to write metrics value", "error", err.Error())
+		h.log.V(1).Info("failed to write metrics value", "error", err.Error())
 	}
 }

@@ -50,8 +50,10 @@ Useful for tracking certificate expiration across multiple clusters.
 ### Components
 
 - **IngressController**: Watches Ingress resources and TLS Secrets, parses certificates, updates cache
+- **ClusterObserverController**: Optional CRD for dynamic configuration management
 - **IngressCache**: Thread-safe in-memory storage for ingress and certificate data
 - **HTTPReporter**: Reads from cache and sends JSON reports every 30 seconds
+- **Metrics Endpoint**: Exposes ingress count at `:9090/metrics` (Prometheus format)
 
 The IngressController uses a watch mechanism to automatically reconcile Ingresses when their TLS Secrets change, keeping certificate expiry data fresh.
 
@@ -98,7 +100,17 @@ kubectl logs -l app=test-server -f
 
 You should see JSON reports with certificate expiry dates every 30 seconds.
 
+### 5. Cleanup
+
+```
+make kind-delete
+```
+
+All created resources will be deleted
+
 ## Configuration
+
+### Environment Variables (Default)
 
 Configure via environment variables in `config/manager/manager.yaml`:
 
@@ -107,6 +119,14 @@ Configure via environment variables in `config/manager/manager.yaml`:
 | `CLUSTER_NAME` | `local-kind` | Cluster identifier in reports |
 | `REPORT_ENDPOINT` | `http://test-server.default.svc.cluster.local:8080/report` | Where to send reports |
 | `REPORT_INTERVAL` | `30s` | Report frequency |
+
+### ClusterObserver CRD (Optional)
+
+Alternatively, use the ClusterObserver CRD for runtime configuration. See `config/samples/observer_v1alpha1_clusterobserver.yaml`.
+
+### Metrics
+
+Access metrics at `http://localhost:9090/metrics` (exposes total ingress count).
 
 ## Example JSON Output
 
@@ -244,11 +264,6 @@ Check test-server logs:
 ```bash
 kubectl logs -l app=test-server
 ```
-
-Common issues:
-- Image not loaded: Run `make kind-load IMG=cert-observer:latest`
-- Test-server not running: Run `make deploy-examples`
-- Certificate not parsing: Verify Secret is type `kubernetes.io/tls` with valid PEM cert in `tls.crt`
 
 ## License
 

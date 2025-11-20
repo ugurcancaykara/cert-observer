@@ -236,7 +236,7 @@ func main() {
 	go httpReporter.Start(ctx)
 
 	// Start metrics HTTP server
-	metricsHandler := metrics.NewHandler(ingressCache)
+	metricsHandler := metrics.NewHandler(ingressCache, ctrl.Log.WithName("metrics"))
 	metricsServer := &http.Server{
 		Addr:    ":9090",
 		Handler: http.HandlerFunc(metricsHandler.ServeHTTP),
