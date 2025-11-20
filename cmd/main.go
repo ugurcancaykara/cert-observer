@@ -17,9 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
+	"net/http"
 	"os"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -39,6 +42,7 @@ import (
 	"github.com/ugurcancaykara/cert-observer/internal/cache"
 	"github.com/ugurcancaykara/cert-observer/internal/config"
 	"github.com/ugurcancaykara/cert-observer/internal/controller"
+	"github.com/ugurcancaykara/cert-observer/internal/metrics"
 	"github.com/ugurcancaykara/cert-observer/internal/reporter"
 	// +kubebuilder:scaffold:imports
 )
@@ -230,6 +234,29 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	httpReporter := reporter.NewHTTPReporter(cfg, ingressCache, ctrl.Log.WithName("reporter"))
 	go httpReporter.Start(ctx)
+
+	// Start metrics HTTP server
+	metricsHandler := metrics.NewHandler(ingressCache)
+	metricsServer := &http.Server{
+		Addr:    ":9090",
+		Handler: http.HandlerFunc(metricsHandler.ServeHTTP),
+	}
+	go func() {
+		setupLog.Info("starting metrics server", "addr", ":9090")
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			setupLog.Error(err, "metrics server failed")
+		}
+	}()
+
+	// Graceful shutdown for metrics server
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+			setupLog.Error(err, "metrics server shutdown failed")
+		}
+	}()
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctx); err != nil {

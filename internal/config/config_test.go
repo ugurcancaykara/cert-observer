@@ -8,20 +8,20 @@ import (
 
 func TestLoad(t *testing.T) {
 	tests := []struct {
-		name        string
-		envVars     map[string]string
-		wantCluster string
-		wantURL     string
+		name         string
+		envVars      map[string]string
+		wantCluster  string
+		wantURL      string
 		wantInterval time.Duration
-		wantErr     bool
+		wantErr      bool
 	}{
 		{
-			name:        "default values",
-			envVars:     map[string]string{},
-			wantCluster: "local-cluster",
-			wantURL:     "http://localhost:8080/report",
+			name:         "default values",
+			envVars:      map[string]string{},
+			wantCluster:  "local-cluster",
+			wantURL:      "http://localhost:8080/report",
 			wantInterval: 30 * time.Second,
-			wantErr:     false,
+			wantErr:      false,
 		},
 		{
 			name: "custom values",
@@ -30,10 +30,10 @@ func TestLoad(t *testing.T) {
 				"REPORT_ENDPOINT": "http://collector.example.com/report",
 				"REPORT_INTERVAL": "1m",
 			},
-			wantCluster: "prod-cluster",
-			wantURL:     "http://collector.example.com/report",
+			wantCluster:  "prod-cluster",
+			wantURL:      "http://collector.example.com/report",
 			wantInterval: 1 * time.Minute,
-			wantErr:     false,
+			wantErr:      false,
 		},
 		{
 			name: "invalid interval",
