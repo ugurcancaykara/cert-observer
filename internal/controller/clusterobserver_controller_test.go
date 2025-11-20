@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	observerv1alpha1 "github.com/ugurcancaykara/cert-observer/api/v1alpha1"
+	"github.com/ugurcancaykara/cert-observer/internal/cache"
 )
 
 var _ = Describe("ClusterObserver Controller", func() {
@@ -51,7 +52,11 @@ var _ = Describe("ClusterObserver Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: observerv1alpha1.ClusterObserverSpec{
+						ClusterName:    "test-cluster",
+						ReportEndpoint: "http://test-server:8080/report",
+						ReportInterval: "30s",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -68,17 +73,17 @@ var _ = Describe("ClusterObserver Controller", func() {
 		})
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
+			ingressCache := cache.NewIngressCache("test-cluster")
 			controllerReconciler := &ClusterObserverReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
+				Cache:  ingressCache,
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
 		})
 	})
 })
